@@ -40,11 +40,7 @@ try {
         Start-Process powershell.exe -ArgumentList $args -Verb RunAs -ErrorAction Stop
         exit
     }
-    Write-Log "Running elevated + STA"
-} catch {
-    Write-Log "Relaunch failed: $($_.Exception.Message)"
-    throw
-}
+    Write-Log "Running elevated +和
 
 # --- ExecutionPolicy sichern & Bypass setzen ---
 $originalPolicy = Get-ExecutionPolicy -Scope CurrentUser
@@ -133,10 +129,10 @@ function Run-Installer {
     }
 }
 
-# --- Aufgabenliste mit deinen URLs ---
+# --- Aufgabenliste mit korrigierter Edge-Konfiguration ---
 $tasks = @(
     @{ Name='Brave';   Url='https://referrals.brave.com/latest/BraveBrowserSetup.exe';                                            Ext='.exe';  Script=$false },
-    @{ Name='Edge';    Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat';                     Ext='.bat';  Script=$true  },
+    @{ Name='Edge';    Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat';                     Ext='.bat';  Script=$false },
     @{ Name='Ninite';  Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe';                    Ext='.exe';  Script=$false },
     @{ Name='Debloat'; Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/refs/heads/main/Win11Debloat.ps1';   Ext='.ps1';  Script=$true  }
 )
