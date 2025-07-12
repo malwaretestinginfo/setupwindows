@@ -1,12 +1,9 @@
 # SetupAssistant.ps1
 
 # --- Logging setup ---
-# 1) Format the log-file name
 $randomId    = Get-Random
 $logFileName = "SetupAssistant_{0}.log" -f $randomId
-# 2) Join it to $env:TEMP
-$logFile = Join-Path $env:TEMP $logFileName
-
+$logFile     = Join-Path $env:TEMP $logFileName
 "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Starting $PSCommandPath" |
     Out-File -FilePath $logFile -Append
 
@@ -59,7 +56,7 @@ Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 # --- Build the form & status label ---
 $form = New-Object System.Windows.Forms.Form -Property @{
     Text           = 'Setup Assistant'
-    Size           = New-Object System.Drawing.Size(400,300)
+    Size           = New-Object System.Drawing.Size(400,340)
     StartPosition  = 'CenterScreen'
     FormBorderStyle= 'FixedSingle'
     MaximizeBox    = $false
@@ -123,13 +120,13 @@ if (-not (Test-Path $desktop)) {
     Update-Status "Desktop not found; using TEMP."
 }
 
-# --- Download URLs ---
-$urls = @{
-    Brave   = 'https://referrals.brave.com/latest/BraveBrowserSetup.exe'
-    Edge    = 'https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat'
-    Ninite  = 'https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe'
-    Debloat = 'https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/refs/heads/main/Win11Debloat.ps1'
-}
+# --- Download URLs & file extensions ---
+$tasks = @(
+    @{ Name='Brave';   Url='https://referrals.brave.com/latest/BraveBrowserSetup.exe';    Ext='.exe';   IsScript=$false },
+    @{ Name='Edge';    Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat'; Ext='.bat'; IsScript=$true  },
+    @{ Name='Ninite';  Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe';  Ext='.exe';   IsScript=$false },
+    @{ Name='Debloat'; Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/refs/heads/main/Win11Debloat.ps1'; Ext='.ps1'; IsScript=$true  }
+)
 
 # --- Button factory ---
 function Add-Button {
@@ -143,28 +140,43 @@ function Add-Button {
     $form.Controls.Add($btn)
 }
 
-# --- Add your buttons ---
-Add-Button 'Install Brave Browser' 60 {
-    $out = Join-Path $desktop 'BraveBrowserSetup.exe'
-    if (Download-File $urls.Brave $out) { Run-Installer $out }
+# --- Individual buttons (optional) ---
+Add-Button 'Install Brave Browser'      60 {
+    $t = $tasks | Where Name -eq 'Brave'
+    $out = Join-Path $desktop ($t.Name + $t.Ext)
+    if (Download-File $t.Url $out) { Run-Installer $out $t.IsScript }
 }
 
-Add-Button 'Run Edge Batch' 100 {
-    $out = Join-Path $desktop 'Edge.bat'
-    if (Download-File $urls.Edge $out) { Run-Installer $out $true }
+Add-Button 'Run Edge Batch'             100 {
+    $t = $tasks | Where Name -eq 'Edge'
+    $out = Join-Path $desktop ($t.Name + $t.Ext)
+    if (Download-File $t.Url $out) { Run-Installer $out $t.IsScript }
 }
 
-Add-Button 'Install Ninite' 140 {
-    $out = Join-Path $desktop 'ninite.exe'
-    if (Download-File $urls.Ninite $out) { Run-Installer $out }
+Add-Button 'Install Ninite'             140 {
+    $t = $tasks | Where Name -eq 'Ninite'
+    $out = Join-Path $desktop ($t.Name + $t.Ext)
+    if (Download-File $t.Url $out) { Run-Installer $out $t.IsScript }
 }
 
-Add-Button 'Run Win11Debloat' 180 {
-    $out = Join-Path $desktop 'Win11Debloat.ps1'
-    if (Download-File $urls.Debloat $out) { Run-Installer $out $true }
+Add-Button 'Run Win11Debloat'           180 {
+    $t = $tasks | Where Name -eq 'Debloat'
+    $out = Join-Path $desktop ($t.Name + $t.Ext)
+    if (Download-File $t.Url $out) { Run-Installer $out $t.IsScript }
 }
 
-Add-Button 'Restart System' 220 {
+# --- NEW: Start Installation button ---
+Add-Button 'Start Installation (All)'   220 {
+    foreach ($t in $tasks) {
+        $out = Join-Path $desktop ($t.Name + $t.Ext)
+        if (-not (Download-File $t.Url $out)) { break }
+        Run-Installer $out $t.IsScript
+    }
+    Update-Status 'All tasks completed (or halted on error).'
+}
+
+# --- Restart System button ---
+Add-Button 'Restart System'             260 {
     if ([System.Windows.Forms.MessageBox]::Show('Restart now?','Confirm',
             [System.Windows.Forms.MessageBoxButtons]::YesNo,
             [System.Windows.Forms.MessageBoxIcon]::Question
@@ -179,7 +191,7 @@ Add-Button 'Restart System' 220 {
 # --- Restore ExecutionPolicy on exit ---
 $form.Add_FormClosing({
     try {
-        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalPolicy -Force
+        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalPolicy -Forces
         "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Restored ExecutionPolicy to $originalPolicy" |
             Out-File -FilePath $logFile -Append
     } catch {
