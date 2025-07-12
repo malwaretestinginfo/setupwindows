@@ -1,48 +1,47 @@
 @echo off
-:: -----------------------------
-:: 1) Self-elevation via UAC
-:: -----------------------------
-net session >nul 2>&1
-if %errorLevel% neq 0 (
-    echo Erhöhe Rechte...
-    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+setlocal enabledelayedexpansion
+
+:: Pruefe auf Adminrechte
+net session >nul 2>&1 || (
+    echo Starte mit Administratorrechten neu...
+    powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
     exit /b
 )
-echo Administrative Rechte bestätigt.
 
-:: -----------------------------
-:: 2) Download Edge.bat
-:: -----------------------------
-echo Lade Edge.bat herunter...
-powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat' -OutFile '%~dp0Edge.bat'"
+set "DEST=%USERPROFILE%\Desktop"
+if not exist "%DEST%" (
+    echo Desktop-Ordner nicht gefunden.
+    exit /b 1
+)
 
-:: -----------------------------
-:: 3) Download BraveBrowserSetup
-:: -----------------------------
-echo Lade BraveBrowserSetup-BRV013.exe herunter...
-powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/BraveBrowserSetup-BRV013.exe' -OutFile '%~dp0BraveBrowserSetup-BRV013.exe'"
+set "URL1=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/BraveBrowserSetup-BRV013.exe"
+set "URL2=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat"
+set "URL3=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe"
 
-:: -----------------------------
-:: 4) Ausführen von Edge.bat
-:: -----------------------------
-echo Starte Edge.bat...
-call "%~dp0Edge.bat"
-
-:: -----------------------------
-:: 5) Ausführen von BraveBrowserSetup
-:: -----------------------------
-echo Starte BraveBrowserSetup-BRV013.exe...
-start /wait "" "%~dp0BraveBrowserSetup-BRV013.exe"
-
-:: -----------------------------
-:: 6) Download und Ausführen Ninite-Installer
-:: -----------------------------
-echo Lade Ninite-Installer herunter...
-powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Ninite%207Zip%20AnyDesk%20GIMP%20JDK%20AdoptOpenJDK%208%20Installer.exe' -OutFile '%~dp0Ninite-Installer.exe'"
-
-echo Starte Ninite-Installer...
-start /wait "" "%~dp0Ninite-Installer.exe"
+:downloadFile
+set "URL=%~1"
+set "OUT=%DEST%\%~2"
 
 echo.
-echo Alle Schritte abgeschlossen!
-pause
+echo Downloading %~2 to Desktop...
+PowerShell -Command "Invoke-WebRequest '%URL%' -OutFile '%OUT%' -UseBasicParsing -ProgressPreference Continue"
+if errorlevel 1 (
+    echo Fehler beim Herunterladen von %~2. Versuche erneut...
+    goto downloadFile %URL% %~2
+)
+exit /b 0
+
+call :downloadFile %URL1% BraveBrowserSetup-BRV013.exe
+call :downloadFile %URL2% Edge.bat
+call :downloadFile %URL3% ninite.exe
+
+echo.
+echo Starte Installationen von Desktop...
+start /wait "%DEST%\BraveBrowserSetup-BRV013.exe"
+start /wait "%DEST%\Edge.bat"
+start /wait "%DEST%\ninite.exe"
+
+echo.
+echo Alle Installationen abgeschlossen. Neustart in 10 Sekunden...
+timeout /t 10 /nobreak >nul
+shutdown /r /t 0
