@@ -1,30 +1,49 @@
 @echo off & setlocal enabledelayedexpansion
 
+:: Initialize error log
+set "LOG_FILE=%TEMP%\setup_error.log"
+echo [%date% %time%] Starting batch script > "%LOG_FILE%"
+
 :: Start and pause for user visibility
 echo Starting setup script... Press any key to continue.
+echo [%date% %time%] User prompted to start >> "%LOG_FILE%"
 pause >nul
 
 :: Check for admin privileges and relaunch as admin if needed
+echo Checking for admin privileges...
+echo [%date% %time%] Checking for admin privileges >> "%LOG_FILE%"
 net session >nul 2>&1 || (
     echo Elevating to administrator...
-    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs -WindowStyle Maximized"
+    echo [%date% %time%] Elevating to administrator >> "%LOG_FILE%"
+    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs -WindowStyle Maximized" >> "%LOG_FILE%" 2>&1
+    if errorlevel 1 (
+        echo Failed to elevate to administrator. Check %LOG_FILE% for details.
+        echo [%date% %time%] Elevation failed >> "%LOG_FILE%"
+        pause >nul
+        exit /b 1
+    )
     exit /b
 )
 
 echo Script is running with admin privileges. Press any key to continue.
+echo [%date% %time%] Running with admin privileges >> "%LOG_FILE%"
 pause >nul
 
 :: Define path for temporary PowerShell script
-set "PS_SCRIPT=%USERPROFILE%\Desktop\setup.ps1"
+set "PS_SCRIPT=%TEMP%\setup_%RANDOM%.ps1"
 set "DEST=%USERPROFILE%\Desktop"
+echo Checking desktop path: %DEST%
+echo [%date% %time%] Desktop path: %DEST% >> "%LOG_FILE%"
 if not exist "%DEST%" (
     echo Desktop folder not found at %DEST%. Exiting.
+    echo [%date% %time%] Desktop folder not found >> "%LOG_FILE%"
     pause >nul
     exit /b 1
 )
 
 :: Create temporary PowerShell script
 echo Creating temporary PowerShell GUI script at %PS_SCRIPT%...
+echo [%date% %time%] Creating PowerShell script at %PS_SCRIPT% >> "%LOG_FILE%"
 (
 echo # Check for admin privileges and relaunch as admin if needed
 echo $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -95,7 +114,7 @@ echo         Update-Status "Downloaded $(Split-Path $outputPath -Leaf)."
 echo         return $true
 echo     } catch {
 echo         Update-Status "Failed to download $(Split-Path $outputPath -Leaf): $($_.Exception.Message)"
-echo         [System.Windows.Forms.MessageBox]::Show("Failed to download $(Split-Path $outputPath -Leaf): $($_.Exception.Message)", "Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+echo         [System.Windows.Forms.MessageBox]::Show("Failed to download $(Split- Path $outputPath -Leaf): $($_.Exception.Message)", "Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
 echo         return $false
 echo     }
 echo }
@@ -105,7 +124,7 @@ echo function Run-Installer($filePath, $isScript = $false) {
 echo     try {
 echo         Update-Status "Running $(Split-Path $filePath -Leaf)..."
 echo         if ($isScript) {
-echo             Start-Process -FilePath "powershell" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$filePath`"" -NoNewWindow
+echo             Start-Process -FilePath "powershell" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$filePath`""
 echo         } else {
 echo             Start-Process -FilePath $filePath -Wait
 echo         }
@@ -190,39 +209,46 @@ echo })
 echo.
 echo # Show the form
 echo $form.ShowDialog()
-) > "%PS_SCRIPT%"
+) > "%PS_SCRIPT%" 2>> "%LOG_FILE%"
 
 if errorlevel 1 (
-    echo Failed to create PowerShell script at %PS_SCRIPT%. Check permissions or disk space.
+    echo Failed to create PowerShell script at %PS_SCRIPT%. Check %LOG_FILE% for details.
+    echo [%date% %time%] Failed to create PowerShell script >> "%LOG_FILE%"
     pause >nul
     exit /b 1
 )
 
 :: Verify the PowerShell script was created
 if not exist "%PS_SCRIPT%" (
-    echo PowerShell script (setup.ps1) not found after creation at %PS_SCRIPT%. Exiting.
+    echo PowerShell script (setup.ps1) not found after creation at %PS_SCRIPT%. Check %LOG_FILE%.
+    echo [%date% %time%] PowerShell script not found after creation >> "%LOG_FILE%"
     pause >nul
     exit /b 1
 )
 
 :: Run the PowerShell script and wait for it to complete
-echo Launching PowerShell GUI setup script...
-start /wait powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%"
+echo Launching PowerShell GUI setup script from %PS_SCRIPT%...
+echo [%date% %time%] Launching PowerShell script >> "%LOG_FILE%"
+start /wait powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" >> "%LOG_FILE%" 2>&1
 set "PS_EXIT_CODE=%errorlevel%"
 
 :: Delete the temporary PowerShell script
-echo Deleting temporary PowerShell script...
-del "%PS_SCRIPT%" 2>nul
+echo Deleting temporary PowerShell script at %PS_SCRIPT%...
+echo [%date% %time%] Deleting PowerShell script >> "%LOG_FILE%"
+del "%PS_SCRIPT%" 2>> "%LOG_FILE%"
 if exist "%PS_SCRIPT%" (
     echo Warning: Failed to delete temporary PowerShell script at %PS_SCRIPT%.
+    echo [%date% %time%] Failed to delete PowerShell script >> "%LOG_FILE%"
 )
 
 :: Check for PowerShell script execution errors
 if %PS_EXIT_CODE% neq 0 (
-    echo PowerShell script failed with exit code %PS_EXIT_CODE%. Check for errors.
+    echo PowerShell script failed with exit code %PS_EXIT_CODE%. Check %LOG_FILE% for details.
+    echo [%date% %time%] PowerShell script failed with exit code %PS_EXIT_CODE% >> "%LOG_FILE%"
     pause >nul
     exit /b %PS_EXIT_CODE%
 )
 
 echo PowerShell script completed successfully. Press any key to exit.
+echo [%date% %time%] Script completed successfully >> "%LOG_FILE%"
 pause >nul
