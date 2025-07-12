@@ -1,17 +1,20 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: Adminrechte prüfen und als Admin neu starten (maximiert, mit /k für offene Konsole)
 net session >nul 2>&1 || (
     echo Starte mit Administratorrechten und maximiert neu...
-    powershell -Command "Start-Process -FilePath 'cmd' -ArgumentList '/c "%~f0"' -WorkingDirectory '%CD%' -WindowStyle Maximized' -Verb RunAs"
+    powershell -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/k "%~f0"' -WorkingDirectory '%CD%' -WindowStyle Maximized" -Verb RunAs
     exit /b
 )
 
+:: Aktuelles Fenster maximieren
 powershell -Command "$hwnd = Get-Process -Id $PID | Select-Object -ExpandProperty MainWindowHandle; Add-Type '[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr hWnd,int nCmdShow);' -Name Win -Namespace Win; [Win.Win]::ShowWindow($hwnd,3)"
 
 set "DEST=%USERPROFILE%\Desktop"
 if not exist "%DEST%" (
     echo Desktop-Ordner nicht gefunden.
+    pause
     exit /b 1
 )
 
@@ -34,13 +37,14 @@ if errorlevel 1 (
     echo Fehler beim Herunterladen von %~2. Versuche erneut...
     goto downloadFile %URL% %~2
 )
-exit /b 0
+goto :eof
 
+:: Downloads
 call :downloadFile %URL1% BraveBrowserSetup-BRV013.exe
 call :downloadFile %URL2% Edge.bat
 call :downloadFile %URL3% ninite.exe
-
 call :downloadFile %DEBLOAT% Win11Debloat.ps1
+
 echo Starte Win11Debloat Skript...
 powershell -ExecutionPolicy Bypass -File "%DEST%\Win11Debloat.ps1"
 
@@ -57,3 +61,5 @@ powershell -Command "if((Get-ExecutionPolicy) -eq 'RemoteSigned'){Set-ExecutionP
 echo Alle Installationen abgeschlossen. Neustart in 10 Sekunden...
 timeout /t 10 /nobreak >nul
 shutdown /r /t 0
+
+pause
