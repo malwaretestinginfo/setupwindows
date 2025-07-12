@@ -33,7 +33,6 @@ if not exist "%DEST%" (
 set "URL_BRAVE=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/BraveBrowserSetup-BRV013.exe"
 set "URL_EDGE=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat"
 set "URL_NINITE=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe"
-set "URL_DEBLOAT=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/refs/heads/main/Win11Debloat.ps1"
 
 :: Download files
 echo Downloading Brave installer...
@@ -47,15 +46,6 @@ if errorlevel 1 ( echo Failed to download Edge. Exiting.& pause>nul & exit /b 1 
 echo Downloading Ninite...
 powershell -NoProfile -Command "Invoke-WebRequest '%URL_NINITE%' -OutFile '%DEST%\ninite.exe' -UseBasicParsing"
 if errorlevel 1 ( echo Failed to download Ninite. Exiting.& pause>nul & exit /b 1 )
-
-echo Downloading Win11Debloat script...
-powershell -NoProfile -Command "Invoke-WebRequest '%URL_DEBLOAT%' -OutFile '%DEST%\Win11Debloat.ps1' -UseBasicParsing"
-if errorlevel 1 ( echo Failed to download debloat script. Exiting.& pause>nul & exit /b 1 )
-
-:: Run debloat script
-echo Running Win11Debloat script...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%DEST%\Win11Debloat.ps1"
-if errorlevel 1 echo Warning: Debloat script encountered an error.
 
 :: Execute installers
 echo Installing Brave...
