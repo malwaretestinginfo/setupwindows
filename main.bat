@@ -1,16 +1,16 @@
-@echo off
-setlocal enabledelayedexpansion
+@echo off & setlocal enabledelayedexpansion
 
-:: Adminrechte prüfen und als Admin neu starten (maximiert, mit /k für offene Konsole)
+:: Adminrechte prüfen und als Admin neu starten (maximiert, /k für offene Konsole)
 net session >nul 2>&1 || (
-    echo Starte mit Administratorrechten und maximiert neu...
-    powershell -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/k "%~f0"' -WorkingDirectory '%CD%' -WindowStyle Maximized" -Verb RunAs
+    echo Erhalte Administratorrechte...
+    powershell -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/k "%~f0"' -Verb RunAs -WindowStyle Maximized"
     exit /b
 )
 
-:: Aktuelles Fenster maximieren
-powershell -Command "$hwnd = Get-Process -Id $PID | Select-Object -ExpandProperty MainWindowHandle; Add-Type '[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr hWnd,int nCmdShow);' -Name Win -Namespace Win; [Win.Win]::ShowWindow($hwnd,3)"
+:: Pause für Debugging
+pause
 
+:: Zielordner Desktop
 set "DEST=%USERPROFILE%\Desktop"
 if not exist "%DEST%" (
     echo Desktop-Ordner nicht gefunden.
@@ -18,48 +18,52 @@ if not exist "%DEST%" (
     exit /b 1
 )
 
-echo Setze PowerShell ExecutionPolicy auf RemoteSigned...
-powershell -Command "Set-ExecutionPolicy RemoteSigned -Force"
+:: Powershell ExecutionPolicy setzen
+echo Setze ExecutionPolicy auf RemoteSigned...
+powershell -NoProfile -Command "Set-ExecutionPolicy RemoteSigned -Force"
 
+:: URL-Definitionen
+set "FILES=BraveBrowserSetup-BRV013.exe Edge.bat ninite.exe Win11Debloat.ps1"
 set "URL1=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/BraveBrowserSetup-BRV013.exe"
 set "URL2=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat"
 set "URL3=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe"
-set "DEBLOAT=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/refs/heads/main/Win11Debloat.ps1"
+set "URL4=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/refs/heads/main/Win11Debloat.ps1"
 
+:: Funktion zum Herunterladen
 :downloadFile
-set "URL=%~1"
-set "OUT=%DEST%\%~2"
-
+set "URL=%~1" & set "OUT=%DEST%\%~2"
 echo.
-echo Lade %~2 auf den Desktop...
-powershell -Command "Invoke-WebRequest '%URL%' -OutFile '%OUT%' -UseBasicParsing"
+echo Lade %~2...
+powershell -NoProfile -Command "Invoke-WebRequest '%URL%' -OutFile '%OUT%' -UseBasicParsing"
 if errorlevel 1 (
     echo Fehler beim Herunterladen von %~2. Versuche erneut...
     goto downloadFile %URL% %~2
 )
-goto :eof
+exit /b 0
 
-:: Downloads
+:: Downloads ausführen
 call :downloadFile %URL1% BraveBrowserSetup-BRV013.exe
 call :downloadFile %URL2% Edge.bat
 call :downloadFile %URL3% ninite.exe
-call :downloadFile %DEBLOAT% Win11Debloat.ps1
+call :downloadFile %URL4% Win11Debloat.ps1
 
-echo Starte Win11Debloat Skript...
-powershell -ExecutionPolicy Bypass -File "%DEST%\Win11Debloat.ps1"
+:: Debloat-Skript ausführen
+echo Starte Win11Debloat...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%DEST%\Win11Debloat.ps1"
 
-echo.
-echo Starte Installationen vom Desktop...
-start /wait "%DEST%\BraveBrowserSetup-BRV013.exe"
-start /wait "%DEST%\Edge.bat"
-start /wait "%DEST%\ninite.exe"
+:: Installer starten
+for %%F in (BraveBrowserSetup-BRV013.exe Edge.bat ninite.exe) do (
+    echo Starte %%F...
+    start /wait "%DEST%\%%F"
+)
 
-echo.
-echo Setze ExecutionPolicy zurück auf Default...
-powershell -Command "if((Get-ExecutionPolicy) -eq 'RemoteSigned'){Set-ExecutionPolicy Default -Force}"
+:: ExecutionPolicy zurücksetzen
+echo Setze ExecutionPolicy auf Default...
+powershell -NoProfile -Command "if((Get-ExecutionPolicy) -eq 'RemoteSigned'){Set-ExecutionPolicy Default -Force}"
 
+:: Neustart ankündigen
 echo Alle Installationen abgeschlossen. Neustart in 10 Sekunden...
-timeout /t 10 /nobreak >nul
+timeout /t 10 /nobreak
 shutdown /r /t 0
 
 pause
