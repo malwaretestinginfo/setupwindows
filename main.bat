@@ -42,7 +42,6 @@ if errorlevel 1 (
     pause >nul
     exit /b 1
 )
-:: Verify file exists
 if not exist "%DEST%\BraveBrowserSetup.exe" (
     echo Brave installer not found after download. Exiting.
     pause >nul
@@ -77,21 +76,23 @@ if not exist "%DEST%\ninite.exe" (
 
 :: Execute installers
 echo Installing Brave...
-start /wait /D "%DEST%" "%DEST%\BraveBrowserSetup.exe"
+start "" "%DEST%\BraveBrowserSetup.exe"
+:: For silent installation, uncomment the line below and comment the above line
+:: start /wait "" "%DEST%\BraveBrowserSetup.exe" /S
 if errorlevel 1 (
     echo Brave installation failed or was cancelled.
     pause >nul
 )
 
 echo Running Edge batch...
-start /wait /D "%DEST%" "%DEST%\Edge.bat"
+start /wait "" "%DEST%\Edge.bat"
 if errorlevel 1 (
     echo Edge batch execution failed or was cancelled.
     pause >nul
 )
 
 echo Running Ninite...
-start /wait /D "%DEST%" "%DEST%\ninite.exe"
+start /wait "" "%DEST%\ninite.exe"
 if errorlevel 1 (
     echo Ninite installation failed or was cancelled.
     pause >nul
