@@ -1,13 +1,22 @@
 # SetupAssistant.ps1
 
-# --- Hide the console window ---
-Add-Type -Name Win32 -Namespace Console -MemberDefinition @"
-    [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
-    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-"@
-$hwnd = [Console.Win32]::GetConsoleWindow()
-# 0 = SW_HIDE
-[Console.Win32]::ShowWindow($hwnd, 0)
+# --- FATAL ERROR TRAP: alle Fehler stoppen und loggen ---
+$ErrorActionPreference = 'Stop'
+trap {
+    Write-Log "UNHANDLED ERROR: $_"
+    [System.Windows.Forms.MessageBox]::Show("FATAL ERROR:`n$_","Fehler",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Error)
+    break
+}
+
+# --- (Optional für Debug) Konsole nicht verstecken --- 
+# Add-Type -Name Win32 -Namespace Console -MemberDefinition @"
+#     [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+#     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+# "@
+# $hwnd = [Console.Win32]::GetConsoleWindow()
+# [Console.Win32]::ShowWindow($hwnd, 0)
 
 # --- Logging setup ---
 $randomId    = Get-Random
@@ -18,18 +27,18 @@ function Write-Log {
     param([string]$msg)
     $timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
     $line = "[$timestamp] $msg"
-    # Append to file
     $line | Out-File -FilePath $logFile -Append
-    # Append to GUI log box if initialized
     if ($global:LogBox) {
         $global:LogBox.AppendText($line + [Environment]::NewLine)
         $global:LogBox.ScrollToCaret()
     }
 }
 
-Write-Log "Starting $PSCommandPath"
+# --- Skript-Pfad ermitteln ---
+$scriptPath = $MyInvocation.MyCommand.Path
+Write-Log "Starting $scriptPath"
 
-# --- STA & Admin check (relaunch if necessary) ---
+# --- STA & Admin check (relaunch if nötig) ---
 try {
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
                ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -39,10 +48,10 @@ try {
         Write-Log "Relaunching under STA + elevated privileges..."
         $args = @(
             '-STA'
-            '-WindowStyle'; 'Hidden'
             '-NoProfile'
             '-ExecutionPolicy'; 'Bypass'
-            '-File'; "`"$PSCommandPath`""
+            '-NoExit'                   # Damit die Konsole bei Fehler sichtbar bleibt
+            '-File'; "`"$scriptPath`""
         )
         Start-Process -FilePath powershell.exe -ArgumentList $args -Verb RunAs -ErrorAction Stop
         exit
@@ -51,10 +60,10 @@ try {
 }
 catch {
     Write-Log "STA/Admin check failed: $_"
-    exit 1
+    throw
 }
 
-# --- ExecutionPolicy (CurrentUser) ---
+# --- ExecutionPolicy (CurrentUser) sichern und Bypass setzen ---
 try {
     $originalPolicy = Get-ExecutionPolicy -Scope CurrentUser
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
@@ -63,28 +72,26 @@ try {
     Write-Log "Failed to set ExecutionPolicy: $_"
 }
 
-# --- Load WinForms ---
+# --- WinForms laden ---
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
-# --- Build GUI ---
+# --- GUI aufbauen ---
 $form = New-Object System.Windows.Forms.Form -Property @{
-    Text           = 'Setup Assistant'
-    Size           = New-Object System.Drawing.Size(420,480)
-    StartPosition  = 'CenterScreen'
-    FormBorderStyle= 'FixedSingle'
-    MaximizeBox    = $false
+    Text            = 'Setup Assistant'
+    Size            = New-Object System.Drawing.Size(420,480)
+    StartPosition   = 'CenterScreen'
+    FormBorderStyle = 'FixedSingle'
+    MaximizeBox     = $false
 }
 
-# Status label
 $statusLabel = New-Object System.Windows.Forms.Label -Property @{
     Location = New-Object System.Drawing.Point(10,10)
     Size     = New-Object System.Drawing.Size(380,20)
-    Text     = 'Ready to start installations.'
+    Text     = 'Waiting to start...'
 }
 $form.Controls.Add($statusLabel)
 
-# Start button
 $startButton = New-Object System.Windows.Forms.Button -Property @{
     Text     = 'Start Installation'
     Size     = New-Object System.Drawing.Size(380,40)
@@ -92,20 +99,18 @@ $startButton = New-Object System.Windows.Forms.Button -Property @{
 }
 $form.Controls.Add($startButton)
 
-# Log text box
 $logBox = New-Object System.Windows.Forms.TextBox -Property @{
-    Multiline   = $true
-    ReadOnly    = $true
-    ScrollBars  = 'Vertical'
-    Location    = New-Object System.Drawing.Point(10, 90)
-    Size        = New-Object System.Drawing.Size(380, 340)
-    Font        = New-Object System.Drawing.Font('Consolas',10)
+    Multiline  = $true
+    ReadOnly   = $true
+    ScrollBars = 'Vertical'
+    Location   = New-Object System.Drawing.Point(10, 90)
+    Size       = New-Object System.Drawing.Size(380, 340)
+    Font       = New-Object System.Drawing.Font('Consolas',10)
 }
 $form.Controls.Add($logBox)
-# Expose globally for Write-Log
 $global:LogBox = $logBox
 
-# --- Helper functions ---
+# --- Helper-Funktionen ---
 function Update-Status {
     param([string]$m)
     $statusLabel.Text = $m
@@ -114,7 +119,7 @@ function Update-Status {
 }
 
 function Download-File {
-    param($url,$out)
+    param($url, $out)
     Update-Status "Downloading $([IO.Path]::GetFileName($out))..."
     try {
         Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing -ErrorAction Stop
@@ -131,11 +136,11 @@ function Download-File {
 }
 
 function Run-Installer {
-    param($path,$isScript)
+    param($path, $isScript)
     Update-Status "Running $([IO.Path]::GetFileName($path))..."
     try {
         if ($isScript) {
-            Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$path`"" -ErrorAction Stop
+            Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File', "`"$path`"" -ErrorAction Stop
         } else {
             Start-Process $path -Wait -ErrorAction Stop
         }
@@ -149,24 +154,24 @@ function Run-Installer {
     }
 }
 
-# --- Tasks list ---
+# --- Aufgabenliste ---
 $tasks = @(
-    @{ Name='Brave';   Url='https://referrals.brave.com/latest/BraveBrowserSetup.exe';    Ext='.exe';   Script=$false },
-    @{ Name='Edge';    Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat'; Ext='.bat'; Script=$true  },
-    @{ Name='Ninite';  Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe';  Ext='.exe';   Script=$false },
+    @{ Name='Brave';   Url='https://referrals.brave.com/latest/BraveBrowserSetup.exe';                              Ext='.exe'; Script=$false },
+    @{ Name='Edge';    Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat';      Ext='.bat'; Script=$true  },
+    @{ Name='Ninite';  Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe';    Ext='.exe'; Script=$false },
     @{ Name='Debloat'; Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/refs/heads/main/Win11Debloat.ps1'; Ext='.ps1'; Script=$true  }
 )
 
-# --- Button click action ---
+# --- Button-Click Action ---
 $startButton.Add_Click({
-    # Determine download folder
+    # Download-Ordner ermitteln
     $desktop = [Environment]::GetFolderPath('Desktop')
     if (-not (Test-Path $desktop)) {
         $desktop = $env:TEMP
         Update-Status "Desktop missing; using TEMP."
     }
 
-    # Installieren
+    # Installationsdurchlauf
     foreach ($t in $tasks) {
         $out = Join-Path $desktop ($t.Name + $t.Ext)
         if (-not (Download-File $t.Url $out)) { break }
@@ -175,15 +180,14 @@ $startButton.Add_Click({
 
     Update-Status 'Installation sequence complete.'
 
-    # --- Cleanup: entferne alle heruntergeladenen Dateien außer dem PS1-Skript ---
+    # --- Cleanup: entferne alle heruntergeladenen Dateien (EXE, BAT, PS1) außer das laufende Skript ---
     foreach ($t in $tasks) {
         $out = Join-Path $desktop ($t.Name + $t.Ext)
         if (Test-Path $out) {
             try {
                 Remove-Item -Path $out -Force -ErrorAction Stop
                 Write-Log "Removed file: $out"
-            }
-            catch {
+            } catch {
                 Write-Log "Failed to remove $out: $_"
             }
         }
@@ -191,7 +195,7 @@ $startButton.Add_Click({
     Update-Status 'Cleanup complete: Installation artifacts removed.'
 })
 
-# --- Restore execution policy on close ---
+# --- Restore ExecutionPolicy on close ---
 $form.Add_FormClosing({
     try {
         Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalPolicy -Force
@@ -201,6 +205,6 @@ $form.Add_FormClosing({
     }
 })
 
-# --- Launch GUI ---
+# --- GUI starten ---
 Update-Status 'Waiting to start...'
 [System.Windows.Forms.Application]::Run($form)
