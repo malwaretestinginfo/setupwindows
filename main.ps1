@@ -1,8 +1,7 @@
 # SetupAssistant.ps1
 
 # --- Hide the console window ---
-Add-Type -Name Win32 -Namespace Console -
-  MemberDefinition @"
+Add-Type -Name Win32 -Namespace Console -MemberDefinition @"
     [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 "@
@@ -167,6 +166,7 @@ $startButton.Add_Click({
         Update-Status "Desktop missing; using TEMP."
     }
 
+    # Installieren
     foreach ($t in $tasks) {
         $out = Join-Path $desktop ($t.Name + $t.Ext)
         if (-not (Download-File $t.Url $out)) { break }
@@ -174,6 +174,21 @@ $startButton.Add_Click({
     }
 
     Update-Status 'Installation sequence complete.'
+
+    # --- Cleanup: entferne alle heruntergeladenen Dateien außer dem PS1-Skript ---
+    foreach ($t in $tasks) {
+        $out = Join-Path $desktop ($t.Name + $t.Ext)
+        if (Test-Path $out) {
+            try {
+                Remove-Item -Path $out -Force -ErrorAction Stop
+                Write-Log "Removed file: $out"
+            }
+            catch {
+                Write-Log "Failed to remove $out: $_"
+            }
+        }
+    }
+    Update-Status 'Cleanup complete: Installation artifacts removed.'
 })
 
 # --- Restore execution policy on close ---
