@@ -1,19 +1,24 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Pruefe auf Adminrechte
+:: Admin-Check und Neustart als erhöhter, maximierter Prozess
 net session >nul 2>&1 || (
-    echo Starte mit Administratorrechten neu...
-    powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    echo Starte mit Administratorrechten und maximiert neu...
+    powershell -Command "Start-Process -FilePath 'cmd' -ArgumentList '/c "%~f0"' -WorkingDirectory '%CD%' -WindowStyle Maximized' -Verb RunAs"
     exit /b
 )
 
+:: Fenster neu maximieren, falls nicht bereits
+powershell -Command "$hwnd = Get-Process -Id $PID | Select-Object -ExpandProperty MainWindowHandle; Add-Type '[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr hWnd,int nCmdShow);' -Name Win -Namespace Win; [Win.Win]::ShowWindow($hwnd,3)"
+
+:: Zielordner Desktop
 set "DEST=%USERPROFILE%\Desktop"
 if not exist "%DEST%" (
     echo Desktop-Ordner nicht gefunden.
     exit /b 1
 )
 
+:: Download-Links
 set "URL1=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/BraveBrowserSetup-BRV013.exe"
 set "URL2=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat"
 set "URL3=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe"
@@ -23,7 +28,7 @@ set "URL=%~1"
 set "OUT=%DEST%\%~2"
 
 echo.
-echo Downloading %~2 to Desktop...
+echo Lade %~2 auf den Desktop...
 PowerShell -Command "Invoke-WebRequest '%URL%' -OutFile '%OUT%' -UseBasicParsing -ProgressPreference Continue"
 if errorlevel 1 (
     echo Fehler beim Herunterladen von %~2. Versuche erneut...
@@ -31,16 +36,19 @@ if errorlevel 1 (
 )
 exit /b 0
 
+:: Downloads
 call :downloadFile %URL1% BraveBrowserSetup-BRV013.exe
 call :downloadFile %URL2% Edge.bat
 call :downloadFile %URL3% ninite.exe
 
+:: Installationen
 echo.
-echo Starte Installationen von Desktop...
+echo Starte Installationen vom Desktop...
 start /wait "%DEST%\BraveBrowserSetup-BRV013.exe"
 start /wait "%DEST%\Edge.bat"
 start /wait "%DEST%\ninite.exe"
 
+:: Neustart
 echo.
 echo Alle Installationen abgeschlossen. Neustart in 10 Sekunden...
 timeout /t 10 /nobreak >nul
