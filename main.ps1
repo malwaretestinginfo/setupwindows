@@ -4,7 +4,7 @@
 $randomId    = Get-Random
 $logFileName = "SetupAssistant_{0}.log" -f $randomId
 $logFile     = Join-Path $env:TEMP $logFileName
-"[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Starting $PSCommandPath" |
+"[$((Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))] Starting $PSCommandPath" |
     Out-File -FilePath $logFile -Append
 
 # --- STA & Admin check (relaunch if necessary) ---
@@ -14,7 +14,7 @@ try {
     $isSTA   = [System.Threading.Thread]::CurrentThread.ApartmentState -eq 'STA'
 
     if (-not ($isAdmin -and $isSTA)) {
-        "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Relaunching under STA + elevated privileges..." |
+        "[$((Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))] Relaunching under STA + elevated privileges..." |
             Out-File -FilePath $logFile -Append
 
         $args = @(
@@ -26,14 +26,12 @@ try {
         Start-Process -FilePath powershell.exe -ArgumentList $args -Verb RunAs -ErrorAction Stop
         exit
     }
-
-    "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Running STA + Administrator" |
+    "[$((Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))] Running STA + Administrator" |
         Out-File -FilePath $logFile -Append
 }
 catch {
-    "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] STA/Admin check failed: $_" |
+    "[$((Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))] STA/Admin check failed: $_" |
         Out-File -FilePath $logFile -Append
-    Write-Error "Could not elevate or set STA: $_"
     exit 1
 }
 
@@ -41,11 +39,10 @@ catch {
 try {
     $originalPolicy = Get-ExecutionPolicy -Scope CurrentUser
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
-    "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] ExecutionPolicy set to Bypass for CurrentUser" |
+    "[$((Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))] ExecutionPolicy set to Bypass for CurrentUser" |
         Out-File -FilePath $logFile -Append
-}
-catch {
-    "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Failed to set ExecutionPolicy: $_" |
+} catch {
+    "[$((Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))] Failed to set ExecutionPolicy: $_" |
         Out-File -FilePath $logFile -Append
 }
 
@@ -53,10 +50,10 @@ catch {
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
-# --- Build the form & status label ---
+# --- Build GUI ---
 $form = New-Object System.Windows.Forms.Form -Property @{
     Text           = 'Setup Assistant'
-    Size           = New-Object System.Drawing.Size(400,340)
+    Size           = New-Object System.Drawing.Size(400,200)
     StartPosition  = 'CenterScreen'
     FormBorderStyle= 'FixedSingle'
     MaximizeBox    = $false
@@ -69,138 +66,73 @@ $statusLabel = New-Object System.Windows.Forms.Label -Property @{
 }
 $form.Controls.Add($statusLabel)
 
-# --- Helper functions ---
-function Update-Status {
-    param([string]$msg)
-    $statusLabel.Text = $msg
-    $statusLabel.Refresh()
-    "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] $msg" |
-        Out-File -FilePath $logFile -Append
+$startButton = New-Object System.Windows.Forms.Button -Property @{
+    Text     = 'Start Installation'
+    Size     = New-Object System.Drawing.Size(360,40)
+    Location = New-Object System.Drawing.Point(10,60)
 }
+$form.Controls.Add($startButton)
 
+# --- Helper functions ---
+function Update-Status { param($m) $statusLabel.Text=$m; $statusLabel.Refresh(); "[$((Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))] $m"| Out-File $logFile -Append }
 function Download-File {
-    param($url, $outPath)
-    Update-Status "Downloading $([IO.Path]::GetFileName($outPath))..."
+    param($url,$out)
+    Update-Status "Downloading $([IO.Path]::GetFileName($out))..."
     try {
-        Invoke-WebRequest -Uri $url -OutFile $outPath -UseBasicParsing -ErrorAction Stop
-        if (-not (Test-Path $outPath)) { throw 'File missing after download' }
-        Update-Status "Downloaded $([IO.Path]::GetFileName($outPath))."
+        Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing -ErrorAction Stop
+        if (-not (Test-Path $out)) { throw 'Missing after download' }
+        Update-Status "Downloaded $([IO.Path]::GetFileName($out))."
         return $true
     } catch {
         Update-Status "Download failed: $_"
-        [System.Windows.Forms.MessageBox]::Show("Failed to download: $_",'Error',
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Error)
+        [System.Windows.Forms.MessageBox]::Show("Download error: $_",'Error',[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Error)
         return $false
     }
 }
-
 function Run-Installer {
-    param($filePath, [bool]$isScript=$false)
-    Update-Status "Running $([IO.Path]::GetFileName($filePath))..."
+    param($path,$isScript)
+    Update-Status "Running $([IO.Path]::GetFileName($path))..."
     try {
         if ($isScript) {
-            Start-Process -FilePath powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$filePath`"" -ErrorAction Stop
+            Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$path`"" -ErrorAction Stop
         } else {
-            Start-Process -FilePath $filePath -Wait -ErrorAction Stop
+            Start-Process $path -Wait -ErrorAction Stop
         }
-        Update-Status "Completed $([IO.Path]::GetFileName($filePath))."
+        Update-Status "Completed $([IO.Path]::GetFileName($path))."
     } catch {
         Update-Status "Run failed: $_"
-        [System.Windows.Forms.MessageBox]::Show("Failed to run: $_",'Error',
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Error)
+        [System.Windows.Forms.MessageBox]::Show("Run error: $_",'Error',[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Error)
     }
 }
 
-# --- Determine Desktop path (fallback to TEMP) ---
-$desktop = [Environment]::GetFolderPath('Desktop')
-if (-not (Test-Path $desktop)) {
-    $desktop = $env:TEMP
-    Update-Status "Desktop not found; using TEMP."
-}
-
-# --- Download URLs & file extensions ---
+# --- Tasks list ---
 $tasks = @(
-    @{ Name='Brave';   Url='https://referrals.brave.com/latest/BraveBrowserSetup.exe';    Ext='.exe';   IsScript=$false },
-    @{ Name='Edge';    Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat'; Ext='.bat'; IsScript=$true  },
-    @{ Name='Ninite';  Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe';  Ext='.exe';   IsScript=$false },
-    @{ Name='Debloat'; Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/refs/heads/main/Win11Debloat.ps1'; Ext='.ps1'; IsScript=$true  }
+    @{ Name='Brave';   Url='https://referrals.brave.com/latest/BraveBrowserSetup.exe';    Ext='.exe';   Script=$false },
+    @{ Name='Edge';    Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat'; Ext='.bat'; Script=$true  },
+    @{ Name='Ninite';  Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe';  Ext='.exe';   Script=$false },
+    @{ Name='Debloat'; Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/refs/heads/main/Win11Debloat.ps1'; Ext='.ps1'; Script=$true  }
 )
 
-# --- Button factory ---
-function Add-Button {
-    param($text, $yPos, $scriptBlock)
-    $btn = New-Object System.Windows.Forms.Button -Property @{
-        Text     = $text
-        Size     = New-Object System.Drawing.Size(360,30)
-        Location = New-Object System.Drawing.Point(10,$yPos)
-    }
-    $btn.Add_Click($scriptBlock)
-    $form.Controls.Add($btn)
-}
+# --- Single-click handler ---
+$startButton.Add_Click({
+    # Determine desktop or TEMP
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    if (-not (Test-Path $desktop)) { $desktop = $env:TEMP; Update-Status "Using TEMP for downloads." }
 
-# --- Individual buttons (optional) ---
-Add-Button 'Install Brave Browser'      60 {
-    $t = $tasks | Where Name -eq 'Brave'
-    $out = Join-Path $desktop ($t.Name + $t.Ext)
-    if (Download-File $t.Url $out) { Run-Installer $out $t.IsScript }
-}
-
-Add-Button 'Run Edge Batch'             100 {
-    $t = $tasks | Where Name -eq 'Edge'
-    $out = Join-Path $desktop ($t.Name + $t.Ext)
-    if (Download-File $t.Url $out) { Run-Installer $out $t.IsScript }
-}
-
-Add-Button 'Install Ninite'             140 {
-    $t = $tasks | Where Name -eq 'Ninite'
-    $out = Join-Path $desktop ($t.Name + $t.Ext)
-    if (Download-File $t.Url $out) { Run-Installer $out $t.IsScript }
-}
-
-Add-Button 'Run Win11Debloat'           180 {
-    $t = $tasks | Where Name -eq 'Debloat'
-    $out = Join-Path $desktop ($t.Name + $t.Ext)
-    if (Download-File $t.Url $out) { Run-Installer $out $t.IsScript }
-}
-
-# --- NEW: Start Installation button ---
-Add-Button 'Start Installation (All)'   220 {
     foreach ($t in $tasks) {
         $out = Join-Path $desktop ($t.Name + $t.Ext)
         if (-not (Download-File $t.Url $out)) { break }
-        Run-Installer $out $t.IsScript
+        Run-Installer $out $t.Script
     }
-    Update-Status 'All tasks completed (or halted on error).'
-}
-
-# --- Restart System button ---
-Add-Button 'Restart System'             260 {
-    if ([System.Windows.Forms.MessageBox]::Show('Restart now?','Confirm',
-            [System.Windows.Forms.MessageBoxButtons]::YesNo,
-            [System.Windows.Forms.MessageBoxIcon]::Question
-        ) -eq [System.Windows.Forms.DialogResult]::Yes) {
-        Update-Status 'Restarting…'
-        Restart-Computer -Force
-    } else {
-        Update-Status 'Restart canceled.'
-    }
-}
-
-# --- Restore ExecutionPolicy on exit ---
-$form.Add_FormClosing({
-    try {
-        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalPolicy -Forces
-        "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Restored ExecutionPolicy to $originalPolicy" |
-            Out-File -FilePath $logFile -Append
-    } catch {
-        "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Failed to restore policy: $_" |
-            Out-File -FilePath $logFile -Append
-    }
+    Update-Status 'Installation sequence complete.'
 })
 
-# --- Launch the GUI ---
-"[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Launching GUI" |
-    Out-File -FilePath $logFile -Append
+# --- Restore policy on close ---
+$form.Add_FormClosing({
+    try { Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalPolicy -Force }
+    catch { }
+})
+
+# --- Run the GUI ---
+Update-Status 'Waiting to start...'
 [System.Windows.Forms.Application]::Run($form)
