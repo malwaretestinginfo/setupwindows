@@ -18,13 +18,13 @@ pause >nul
 set "PS_SCRIPT=%USERPROFILE%\Desktop\setup.ps1"
 set "DEST=%USERPROFILE%\Desktop"
 if not exist "%DEST%" (
-    echo Desktop folder not found. Exiting.
+    echo Desktop folder not found at %DEST%. Exiting.
     pause >nul
     exit /b 1
 )
 
 :: Create temporary PowerShell script
-echo Creating temporary PowerShell GUI script...
+echo Creating temporary PowerShell GUI script at %PS_SCRIPT%...
 (
 echo # Check for admin privileges and relaunch as admin if needed
 echo $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -161,7 +161,7 @@ echo $debloatButton.Add_Click({
 echo     $debloatPath = Join-Path $desktopPath "Win11Debloat.ps1"
 echo     if (Download-File $urls.Debloat $debloatPath) {
 echo         Update-Status "Launching Win11Debloat in a separate window..."
-echo         Start-Process -FilePath "powershell" STS -ArgumentList "-NoProfile -Command `"Set-Location -Path '$desktopPath'; .\Win11Debloat.ps1 -ExecutionPolicy Bypass`"" -NoNewWindow
+echo         Start-Process -FilePath "powershell" -ArgumentList "-NoProfile -Command `"Set-Location -Path '$desktopPath'; .\Win11Debloat.ps1 -ExecutionPolicy Bypass`""
 echo         Update-Status "Win11Debloat launched."
 echo     }
 echo })
@@ -193,28 +193,28 @@ echo $form.ShowDialog()
 ) > "%PS_SCRIPT%"
 
 if errorlevel 1 (
-    echo Failed to create PowerShell script. Exiting.
+    echo Failed to create PowerShell script at %PS_SCRIPT%. Check permissions or disk space.
     pause >nul
     exit /b 1
 )
 
 :: Verify the PowerShell script was created
 if not exist "%PS_SCRIPT%" (
-    echo PowerShell script (setup.ps1) not found after creation. Exiting.
+    echo PowerShell script (setup.ps1) not found after creation at %PS_SCRIPT%. Exiting.
     pause >nul
     exit /b 1
 )
 
-:: Run the PowerShell script
+:: Run the PowerShell script and wait for it to complete
 echo Launching PowerShell GUI setup script...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%"
+start /wait powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%"
 set "PS_EXIT_CODE=%errorlevel%"
 
 :: Delete the temporary PowerShell script
 echo Deleting temporary PowerShell script...
 del "%PS_SCRIPT%" 2>nul
 if exist "%PS_SCRIPT%" (
-    echo Warning: Failed to delete temporary PowerShell script.
+    echo Warning: Failed to delete temporary PowerShell script at %PS_SCRIPT%.
 )
 
 :: Check for PowerShell script execution errors
@@ -224,5 +224,5 @@ if %PS_EXIT_CODE% neq 0 (
     exit /b %PS_EXIT_CODE%
 )
 
-echo PowerShell script completed. Press any key to exit.
+echo PowerShell script completed successfully. Press any key to exit.
 pause >nul
