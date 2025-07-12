@@ -1,29 +1,30 @@
 @echo off & setlocal enabledelayedexpansion
 
-echo Starte Setup-Script... Druecke eine beliebige Taste.
+:: Start-Pause für Visibility
+echo Starte Setup-Script... Drücke eine Taste.
 pause >nul
 
-:: Pruefe Administratorrechte, starte neu wenn nicht
+:: Prüfe Adminrechte und starte neu als Admin (maximiert)
 net session >nul 2>&1 || (
     echo Erhalte Administratorrechte...
     powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs -WindowStyle Maximized"
     exit /b
 )
 
-:: Maximales Konsolenfenster
-powershell -NoProfile -Command "$hwnd = (Get-Process -Id $PID).MainWindowHandle; Add-Type '[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr hWnd,int cmd);' -Name Win -Namespace WinAPI; [WinAPI.Win]::ShowWindow($hwnd,3)"
+:: Maximieren des Konsolenfensters
+powershell -NoProfile -Command "$hwnd=(Get-Process -Id $PID).MainWindowHandle; Add-Type '[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr, int);' -Name WinAPI -Namespace Win; [WinAPI.WinAPI]::ShowWindow($hwnd,3)"
 
-echo Script laeuft mit Admin-Rechten. Druecke eine Taste zum Fortfahren.
+echo Skript läuft mit Admin-Rechten. Drücke eine Taste zum Fortfahren.
 pause >nul
 
-:: Setze PowerShell ExecutionPolicy
+:: PowerShell ExecutionPolicy setzen
 echo Setze PS ExecutionPolicy auf RemoteSigned...
 powershell -NoProfile -Command "Set-ExecutionPolicy RemoteSigned -Force"
 
-:: Desktop-Pfad
+:: Zielordner Desktop
 set "DEST=%USERPROFILE%\Desktop"
 if not exist "%DEST%" (
-    echo Desktop-Ordner nicht gefunden. Druecke eine Taste zum Beenden.
+    echo Desktop-Ordner nicht gefunden. Skript beendet.
     pause >nul
     exit /b 1
 )
@@ -36,34 +37,37 @@ set "URL_DEBLOAT=https://raw.githubusercontent.com/malwaretestinginfo/setupwindo
 
 :: Dateien herunterladen
 for %%A in (BRAVE EDGE NINITE DEBLOAT) do (
-    set "URL=!URL_%%A!"
-    if "%%A"=="BRAVE" set "OUT=%DEST%\BraveBrowserSetup-BRV013.exe"
-    if "%%A"=="EDGE" set "OUT=%DEST%\Edge.bat"
-    if "%%A"=="NINITE" set "OUT=%DEST%\ninite.exe"
-    if "%%A"=="DEBLOAT" set "OUT=%DEST%\Win11Debloat.ps1"
-    echo Lade %%A nach %%OUT%%...
+    call set "URL=%%URL_%%A%%%"
+    if "%%A"=="BRAVE" ( set "OUT=%DEST%\BraveBrowserSetup-BRV013.exe" )
+    if "%%A"=="EDGE"  ( set "OUT=%DEST%\Edge.bat" )
+    if "%%A"=="NINITE"( set "OUT=%DEST%\ninite.exe" )
+    if "%%A"=="DEBLOAT"( set "OUT=%DEST%\Win11Debloat.ps1" )
+    echo Lade %%A herunter nach %OUT%...
     powershell -NoProfile -Command "Invoke-WebRequest '%URL%' -OutFile '%OUT%' -UseBasicParsing"
     if errorlevel 1 (
-        echo Fehler beim Download von %%A. Druecke eine Taste zum Beenden.
+        echo Fehler beim Download von %%A. Skript beendet.
         pause >nul
         exit /b 1
     )
 )
 
-:: Debloat-Skript ausfuehren
-echo Führe Win11Debloat aus...
+:: Debloat-Skript ausführen
+echo Führe Win11Debloat-Skript aus...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%DEST%\Win11Debloat.ps1"
-if errorlevel 1 echo Achtung: Debloat-Skript fehlgeschlagen.
+if errorlevel 1 echo Warnung: Debloat-Skript-Fehler.
 
+:: Installationsprogramme starten
 echo Starte Installationsprogramme...
 start /wait "%DEST%\BraveBrowserSetup-BRV013.exe"
 start /wait "%DEST%\Edge.bat"
 start /wait "%DEST%\ninite.exe"
 
-echo Setze PS ExecutionPolicy zurueck auf Default...
+:: ExecutionPolicy zurücksetzen
+echo Setze PS ExecutionPolicy zurück auf Default...
 powershell -NoProfile -Command "if((Get-ExecutionPolicy) -eq 'RemoteSigned'){Set-ExecutionPolicy Default -Force}"
 
-echo Alle Schritte abgeschlossen. PC wird in 10 Sekunden neu gestartet...
+:: Neustart ankündigen
+echo Alle Schritte abgeschlossen. Neustart in 10 Sekunden...
 timeout /t 10 /nobreak >nul
 shutdown /r /t 0
 
