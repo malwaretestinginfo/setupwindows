@@ -1,7 +1,12 @@
 # SetupAssistant.ps1
 
 # --- Logging setup ---
-$logFile = Join-Path $env:TEMP "SetupAssistant_{0}.log" -f (Get-Random)
+# 1) Format the log-file name
+$randomId    = Get-Random
+$logFileName = "SetupAssistant_{0}.log" -f $randomId
+# 2) Join it to $env:TEMP
+$logFile = Join-Path $env:TEMP $logFileName
+
 "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Starting $PSCommandPath" |
     Out-File -FilePath $logFile -Append
 
