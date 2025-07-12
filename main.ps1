@@ -24,11 +24,22 @@ try {
     Write-Log "Checking admin rights and STA mode"
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     $isSTA = [System.Threading.Thread]::CurrentThread.ApartmentState -eq 'STA'
-    if (-not $isAdmin) {
-        throw "This script must be run as an Administrator."
-    }
-    if (-not $isSTA) {
-        throw "This script must be run in STA mode. Use 'powershell -STA'."
+    if (-not ($isAdmin -and $isSTA)) {
+        Write-Log "Relaunching with admin privileges and STA mode"
+        $scriptPath = $MyInvocation.MyCommand.Path
+        $args = "-STA -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+        try {
+            Start-Process powershell.exe -ArgumentList $args -Verb RunAs
+            Write-Log "Relaunch successful"
+            exit
+        } catch {
+            $errorMsg = "Failed to relaunch with admin privileges: $($_.Exception.Message)"
+            Write-Log $errorMsg
+            [System.Windows.Forms.MessageBox]::Show($errorMsg, "Error", 
+                [System.Windows.Forms.MessageBoxButtons]::OK, 
+                [System.Windows.Forms.MessageBoxIcon]::Error)
+            exit
+        }
     }
     Write-Log "Admin and STA mode verified"
 
