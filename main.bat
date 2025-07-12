@@ -30,32 +30,72 @@ if not exist "%DEST%" (
 )
 
 :: Define download URLs
-set "URL_BRAVE=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/BraveBrowserSetup-BRV013.exe"
+set "URL_BRAVE=https://referrals.brave.com/latest/BraveBrowserSetup.exe"
 set "URL_EDGE=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat"
 set "URL_NINITE=https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/ninite.exe"
 
 :: Download files
 echo Downloading Brave installer...
-powershell -NoProfile -Command "Invoke-WebRequest '%URL_BRAVE%' -OutFile '%DEST%\BraveBrowserSetup-BRV013.exe' -UseBasicParsing"
-if errorlevel 1 ( echo Failed to download Brave. Exiting.& pause>nul & exit /b 1 )
+powershell -NoProfile -Command "Invoke-WebRequest '%URL_BRAVE%' -OutFile '%DEST%\BraveBrowserSetup.exe' -UseBasicParsing"
+if errorlevel 1 (
+    echo Failed to download Brave. Exiting.
+    pause >nul
+    exit /b 1
+)
+:: Verify file exists
+if not exist "%DEST%\BraveBrowserSetup.exe" (
+    echo Brave installer not found after download. Exiting.
+    pause >nul
+    exit /b 1
+)
 
 echo Downloading Edge batch...
 powershell -NoProfile -Command "Invoke-WebRequest '%URL_EDGE%' -OutFile '%DEST%\Edge.bat' -UseBasicParsing"
-if errorlevel 1 ( echo Failed to download Edge. Exiting.& pause>nul & exit /b 1 )
+if errorlevel 1 (
+    echo Failed to download Edge. Exiting.
+    pause >nul
+    exit /b 1
+)
+if not exist "%DEST%\Edge.bat" (
+    echo Edge batch file not found after download. Exiting.
+    pause >nul
+    exit /b 1
+)
 
 echo Downloading Ninite...
 powershell -NoProfile -Command "Invoke-WebRequest '%URL_NINITE%' -OutFile '%DEST%\ninite.exe' -UseBasicParsing"
-if errorlevel 1 ( echo Failed to download Ninite. Exiting.& pause>nul & exit /b 1 )
+if errorlevel 1 (
+    echo Failed to download Ninite. Exiting.
+    pause >nul
+    exit /b 1
+)
+if not exist "%DEST%\ninite.exe" (
+    echo Ninite installer not found after download. Exiting.
+    pause >nul
+    exit /b 1
+)
 
 :: Execute installers
 echo Installing Brave...
-start /wait "%DEST%\BraveBrowserSetup-BRV013.exe"
+start /wait /D "%DEST%" "%DEST%\BraveBrowserSetup.exe"
+if errorlevel 1 (
+    echo Brave installation failed or was cancelled.
+    pause >nul
+)
 
 echo Running Edge batch...
-start /wait "%DEST%\Edge.bat"
+start /wait /D "%DEST%" "%DEST%\Edge.bat"
+if errorlevel 1 (
+    echo Edge batch execution failed or was cancelled.
+    pause >nul
+)
 
 echo Running Ninite...
-start /wait "%DEST%\ninite.exe"
+start /wait /D "%DEST%" "%DEST%\ninite.exe"
+if errorlevel 1 (
+    echo Ninite installation failed or was cancelled.
+    pause >nul
+)
 
 :: Restore original PowerShell execution policy
 echo Restoring original PowerShell execution policy...
