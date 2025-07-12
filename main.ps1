@@ -27,7 +27,9 @@ function Write-Log {
     param([string]$msg)
     $timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
     $line = "[$timestamp] $msg"
+    # Append to file
     $line | Out-File -FilePath $logFile -Append
+    # Append to GUI log box if initialisiert
     if ($global:LogBox) {
         $global:LogBox.AppendText($line + [Environment]::NewLine)
         $global:LogBox.ScrollToCaret()
@@ -38,7 +40,7 @@ function Write-Log {
 $scriptPath = $MyInvocation.MyCommand.Path
 Write-Log "Starting $scriptPath"
 
-# --- STA & Admin check (relaunch if nötig) ---
+# --- STA & Admin check (relaunch wenn nötig) ---
 try {
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
                ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -50,7 +52,7 @@ try {
             '-STA'
             '-NoProfile'
             '-ExecutionPolicy'; 'Bypass'
-            '-NoExit'                   # Damit die Konsole bei Fehler sichtbar bleibt
+            '-NoExit'                   # Konsole offen lassen bei Fehlern
             '-File'; "`"$scriptPath`""
         )
         Start-Process -FilePath powershell.exe -ArgumentList $args -Verb RunAs -ErrorAction Stop
@@ -63,7 +65,7 @@ catch {
     throw
 }
 
-# --- ExecutionPolicy (CurrentUser) sichern und Bypass setzen ---
+# --- ExecutionPolicy (CurrentUser) sichern und auf Bypass setzen ---
 try {
     $originalPolicy = Get-ExecutionPolicy -Scope CurrentUser
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
@@ -180,7 +182,7 @@ $startButton.Add_Click({
 
     Update-Status 'Installation sequence complete.'
 
-    # --- Cleanup: entferne alle heruntergeladenen Dateien (EXE, BAT, PS1) außer das laufende Skript ---
+    # --- Cleanup: entferne alle heruntergeladenen Dateien außer dem laufenden Skript ---
     foreach ($t in $tasks) {
         $out = Join-Path $desktop ($t.Name + $t.Ext)
         if (Test-Path $out) {
@@ -188,7 +190,7 @@ $startButton.Add_Click({
                 Remove-Item -Path $out -Force -ErrorAction Stop
                 Write-Log "Removed file: $out"
             } catch {
-                Write-Log "Failed to remove $out: $_"
+                Write-Log "Failed to remove $out: $($_)"
             }
         }
     }
