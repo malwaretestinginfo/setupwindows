@@ -29,7 +29,7 @@ set "OUT=%DEST%\%~2"
 
 echo.
 echo Lade %~2 auf den Desktop...
-powershell -Command "Invoke-WebRequest '%URL%' -OutFile '%OUT%' -UseBasicParsing -ProgressPreference Continue"
+powershell -Command "Invoke-WebRequest '%URL%' -OutFile '%OUT%' -UseBasicParsing"
 if errorlevel 1 (
     echo Fehler beim Herunterladen von %~2. Versuche erneut...
     goto downloadFile %URL% %~2
@@ -40,7 +40,6 @@ call :downloadFile %URL1% BraveBrowserSetup-BRV013.exe
 call :downloadFile %URL2% Edge.bat
 call :downloadFile %URL3% ninite.exe
 
-:: Debloat-Skript herunterladen und ausführen
 call :downloadFile %DEBLOAT% Win11Debloat.ps1
 echo Starte Win11Debloat Skript...
 powershell -ExecutionPolicy Bypass -File "%DEST%\Win11Debloat.ps1"
