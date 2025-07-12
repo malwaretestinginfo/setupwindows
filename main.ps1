@@ -40,7 +40,11 @@ try {
         Start-Process powershell.exe -ArgumentList $args -Verb RunAs -ErrorAction Stop
         exit
     }
-    Write-Log "Running elevated +和
+    Write-Log "Running elevated + STA"
+} catch {
+    Write-Log "Relaunch failed: $($_.Exception.Message)"
+    throw
+}
 
 # --- ExecutionPolicy sichern & Bypass setzen ---
 $originalPolicy = Get-ExecutionPolicy -Scope CurrentUser
@@ -129,7 +133,7 @@ function Run-Installer {
     }
 }
 
-# --- Aufgabenliste mit korrigierter Edge-Konfiguration ---
+# --- Aufgabenliste mit deinen URLs ---
 $tasks = @(
     @{ Name='Brave';   Url='https://referrals.brave.com/latest/BraveBrowserSetup.exe';                                            Ext='.exe';  Script=$false },
     @{ Name='Edge';    Url='https://raw.githubusercontent.com/malwaretestinginfo/setupwindows/main/Edge.bat';                     Ext='.bat';  Script=$false },
@@ -143,7 +147,7 @@ $startButton.Add_Click({
     $folder = [Environment]::GetFolderPath('Desktop')
     if (-not (Test-Path $folder)) {
         $folder = $env:TEMP
-        Update-Status "Desktop nicht gefunden; verwende TEMP."
+        Update-Status "Desktop not found; using TEMP."
     }
 
     # Download & Installation
@@ -155,7 +159,7 @@ $startButton.Add_Click({
 
     Update-Status 'Installation sequence complete.'
 
-    # Cleanup: entferne alle heruntergeladenen Dateien außer dem PS1-Skript
+    # Cleanup: remove all downloaded files except the script
     foreach ($t in $tasks) {
         $out = Join-Path $folder ($t.Name + $t.Ext)
         if (Test-Path $out) {
