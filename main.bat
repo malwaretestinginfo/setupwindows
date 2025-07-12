@@ -11,15 +11,15 @@ net session >nul 2>&1 || (
     exit /b
 )
 
-:: Maximize the console window
-powershell -NoProfile -Command "$hwnd=(Get-Process -Id $PID).MainWindowHandle; Add-Type '[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr,int);' -Name WinAPI -Namespace Win; [WinAPI.WinAPI]::ShowWindow($hwnd,3)"
-
 echo Script is running with admin privileges. Press any key to continue.
 pause >nul
 
-:: Set PowerShell execution policy to RemoteSigned
+:: Save the original PowerShell execution policy for LocalMachine
+for /f "tokens=*" %%a in ('powershell -NoProfile -Command "Get-ExecutionPolicy -Scope LocalMachine"') do set "original_policy=%%a"
+
+:: Set PowerShell execution policy to RemoteSigned for LocalMachine
 echo Configuring PowerShell execution policy...
-powershell -NoProfile -Command "Set-ExecutionPolicy RemoteSigned -Force"
+powershell -NoProfile -Command "Set-ExecutionPolicy RemoteSigned -Scope LocalMachine -Force"
 
 :: Determine desktop folder
 set "DEST=%USERPROFILE%\Desktop"
@@ -67,13 +67,17 @@ start /wait "%DEST%\Edge.bat"
 echo Running Ninite...
 start /wait "%DEST%\ninite.exe"
 
-:: Reset PowerShell execution policy
-echo Resetting PowerShell execution policy...
-powershell -NoProfile -Command "if (Get-ExecutionPolicy -Scope LocalMachine -EA SilentlyContinue -ErrorAction SilentlyContinue -eq 'RemoteSigned') { Set-ExecutionPolicy Default -Force }"
+:: Restore original PowerShell execution policy
+echo Restoring original PowerShell execution policy...
+powershell -NoProfile -Command "Set-ExecutionPolicy %original_policy% -Scope LocalMachine -Force"
 
-:: Announce restart and wait
-echo All tasks completed. Restarting in 10 seconds...
-timeout /t 10 /nobreak >nul
-shutdown /r /t 0
+:: Prompt for restart
+echo All tasks completed. Do you want to restart now? (Y/N)
+choice /c YN /t 10 /d Y /m "Restarting in 10 seconds..."
+if errorlevel 2 (
+    echo Restart cancelled.
+) else (
+    shutdown /r /t 0
+)
 
 pause >nul
